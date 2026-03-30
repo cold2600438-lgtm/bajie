@@ -155,6 +155,24 @@ export class UserManager {
   }
 
   /**
+   * Reset a user's access token. Generates a new random token and updates the DB.
+   * Returns the new token. Throws if user not found.
+   */
+  resetToken(userId: string): string {
+    const db = getDatabase();
+    const newToken = generateAccessToken();
+    const result = db.prepare(
+      `UPDATE users SET access_token = ?, updated_at = datetime('now') WHERE id = ?`,
+    ).run(newToken, userId);
+
+    if (result.changes === 0) {
+      throw new Error(`User not found: ${userId}`);
+    }
+
+    return newToken;
+  }
+
+  /**
    * List all users.
    */
   listUsers(): UserInfo[] {

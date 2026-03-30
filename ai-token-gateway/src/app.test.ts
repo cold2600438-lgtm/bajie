@@ -54,9 +54,23 @@ describe('buildApp', () => {
     expect(body.message).toBe('Something went wrong');
   });
 
-  it('should return 404 for unknown routes', async () => {
+  it('should serve index.html for unknown GET routes (SPA fallback)', async () => {
     app = await buildApp();
     const response = await app.inject({ method: 'GET', url: '/nonexistent' });
+    // SPA fallback serves index.html for non-API GET requests
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('<div id="root"></div>');
+  });
+
+  it('should return 404 for unknown non-GET routes', async () => {
+    app = await buildApp();
+    const response = await app.inject({ method: 'POST', url: '/nonexistent' });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('should return 404 for unknown API routes', async () => {
+    app = await buildApp();
+    const response = await app.inject({ method: 'GET', url: '/api/nonexistent' });
     expect(response.statusCode).toBe(404);
   });
 });

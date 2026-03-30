@@ -90,6 +90,42 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
+  // POST /api/user/reset-token — reset own access token (requires auth)
+  fastify.post(
+    '/api/user/reset-token',
+    { preHandler: authMiddleware },
+    async (request, reply) => {
+      try {
+        const newToken = userManager.resetToken(request.user!.id);
+        return reply.code(200).send({ accessToken: newToken });
+      } catch (err: unknown) {
+        if (err instanceof Error && err.message.startsWith('User not found')) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // GET /api/user/profile — get current user info (requires auth)
+  fastify.get(
+    '/api/user/profile',
+    { preHandler: authMiddleware },
+    async (request, reply) => {
+      const user = request.user!;
+      return reply.code(200).send({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        status: user.status,
+        allowedProviders: user.allowedProviders,
+      });
+    },
+  );
+
   // GET /api/user/usage — query personal usage (requires auth)
   fastify.get<{
     Querystring: { start?: string; end?: string; granularity?: string };

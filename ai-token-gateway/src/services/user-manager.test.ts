@@ -171,6 +171,29 @@ describe('UserManager', () => {
     });
   });
 
+  // --- resetToken ---
+
+  describe('resetToken', () => {
+    it('should generate a new access token and return it', () => {
+      const { userId, accessToken: oldToken } = mgr.register({ username: 'reset-user' });
+      const newToken = mgr.resetToken(userId);
+      expect(newToken).toBeDefined();
+      expect(newToken.length).toBe(64); // 32 bytes hex
+      expect(newToken).not.toBe(oldToken);
+    });
+
+    it('should persist the new token in the database', () => {
+      const { userId } = mgr.register({ username: 'reset-persist' });
+      const newToken = mgr.resetToken(userId);
+      const user = mgr.getUserById(userId);
+      expect(user!.accessToken).toBe(newToken);
+    });
+
+    it('should throw for non-existent user', () => {
+      expect(() => mgr.resetToken('nonexistent')).toThrow('User not found');
+    });
+  });
+
   // --- getUserById ---
 
   describe('getUserById', () => {

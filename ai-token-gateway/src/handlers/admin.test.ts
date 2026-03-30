@@ -509,3 +509,173 @@ describe('Admin Usage & Cost Endpoints', () => {
     });
   });
 });
+
+
+describe('Admin New Endpoints (users list, reset-token, keys list, providers list)', () => {
+  let dbPath: string;
+
+  beforeEach(() => {
+    dbPath = tmpDbPath();
+    initializeDatabase(dbPath);
+    process.env.ADMIN_TOKEN = ADMIN_TOKEN;
+    process.env.ENCRYPTION_KEY = ENCRYPTION_KEY;
+    seedProvider('minimax');
+    seedUser('user-1', 'contributor-user');
+  });
+
+  afterEach(() => {
+    cleanup(dbPath);
+    delete process.env.ADMIN_TOKEN;
+    delete process.env.ENCRYPTION_KEY;
+  });
+
+  async function buildApp() {
+    const app = Fastify();
+    await app.register(adminRoutes);
+    return app;
+  }
+
+  // --- POST /api/admin/users/:id/reset-token ---
+
+  describe('POST /api/admin/users/:id/reset-token', () => {
+    it('should reset user token and return new one', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/admin/users/user-1/reset-token',
+        headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.accessToken).toBeDefined();
+      expect(body.accessToken.length).toBe(64);
+    });
+
+    it('should return 404 for non-existent user', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/admin/users/nonexistent/reset-token',
+        headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('should return 401 without admin token', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/admin/users/user-1/reset-token',
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
+  // --- GET /api/admin/users ---
+
+  describe('GET /api/admin/users', () => {
+    it('should return all users', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/admin/users',
+        headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(Array.isArray(body)).toBe(true);
+      expect(body.length).toBe(1);
+      expect(body[0].username).toBe('contributor-user');
+    });
+
+    it('should return 401 without admin token', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/admin/users',
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
+  // --- GET /api/admin/keys ---
+
+  describe('GET /api/admin/keys', () => {
+    it('should return empty list when no keys exist', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/admin/keys',
+        headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual([]);
+    });
+
+    it('should return keys with masked encrypted_key', async () => {
+      // Add a key first
+      const app = await buildApp();
+      await app.inject({
+        method: 'POST',
+        url: '/api/admin/keys',
+        headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
+        payload: {
+          provider: 'minimax',
+          key: 'sk-test-key-for-listing',
+          contributorUserId: 'user-1',
+        },
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/admin/keys',
+        headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.length).toBe(1);
+      expect(body[0].provider).toBe('minimax');
+      expect(body[0].maskedKey).toMatch(/^\*\*\*\*.{4}$/);
+      expect(body[0].contributorUsername).toBe('contributor-user');
+    });
+
+    it('should return 401 without admin token', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/admin/keys',
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
+  // --- GET /api/admin/providers ---
+
+  describe('GET /api/admin/providers', () => {
+    it('should return all providers', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/admin/providers',
+        headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(Array.isArray(body)).toBe(true);
+      expect(body.length).toBe(1);
+      expect(body[0].id).toBe('minimax');
+      expect(body[0].name).toBe('minimax');
+      expect(body[0].apiBaseUrl).toBeDefined();
+      expect(typeof body[0].isDefault).toBe('boolean');
+    });
+
+    it('should return 401 without admin token', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/admin/providers',
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
+});

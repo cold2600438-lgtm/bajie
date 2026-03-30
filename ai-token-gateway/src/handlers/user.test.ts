@@ -164,6 +164,115 @@ describe('User Register Endpoint', () => {
 });
 
 
+describe('User Reset Token Endpoint', () => {
+  let dbPath: string;
+
+  beforeEach(() => {
+    dbPath = tmpDbPath();
+    initializeDatabase(dbPath);
+  });
+
+  afterEach(() => {
+    cleanup(dbPath);
+  });
+
+  function createUserAndGetToken(): { userId: string; token: string } {
+    const db = getDatabase();
+    const token = randomBytes(32).toString('hex');
+    const userId = 'user-reset-1';
+    db.prepare(
+      `INSERT INTO users (id, username, access_token, role, status) VALUES (?, ?, ?, 'user', 'active')`,
+    ).run(userId, 'reset-tester', token);
+    return { userId, token };
+  }
+
+  async function buildApp() {
+    const app = Fastify();
+    await app.register(userRoutes);
+    return app;
+  }
+
+  it('should reset token and return new one', async () => {
+    const { token } = createUserAndGetToken();
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/user/reset-token',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.accessToken).toBeDefined();
+    expect(body.accessToken).not.toBe(token);
+    expect(body.accessToken.length).toBe(64);
+  });
+
+  it('should return 401 without auth token', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/user/reset-token',
+    });
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+
+describe('User Profile Endpoint', () => {
+  let dbPath: string;
+
+  beforeEach(() => {
+    dbPath = tmpDbPath();
+    initializeDatabase(dbPath);
+  });
+
+  afterEach(() => {
+    cleanup(dbPath);
+  });
+
+  function createUserAndGetToken(): string {
+    const db = getDatabase();
+    const token = randomBytes(32).toString('hex');
+    db.prepare(
+      `INSERT INTO users (id, username, access_token, role, status) VALUES (?, ?, ?, 'user', 'active')`,
+    ).run('user-profile-1', 'profile-tester', token);
+    return token;
+  }
+
+  async function buildApp() {
+    const app = Fastify();
+    await app.register(userRoutes);
+    return app;
+  }
+
+  it('should return current user profile', async () => {
+    const token = createUserAndGetToken();
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/user/profile',
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.id).toBe('user-profile-1');
+    expect(body.username).toBe('profile-tester');
+    expect(body.role).toBe('user');
+    expect(body.status).toBe('active');
+    expect(body.allowedProviders).toBeNull();
+  });
+
+  it('should return 401 without auth token', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/user/profile',
+    });
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+
 describe('User Usage Endpoint', () => {
   let dbPath: string;
 

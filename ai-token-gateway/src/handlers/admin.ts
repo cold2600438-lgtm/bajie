@@ -147,6 +147,96 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   // Key Management Endpoints
   // ============================================================
 
+  // POST /api/admin/users/:id/reset-token — reset a user's access token
+  fastify.post(
+    '/api/admin/users/:id/reset-token',
+    async (
+      request: FastifyRequest<{ Params: { id: string } }>,
+      reply: FastifyReply,
+    ) => {
+      const { id } = request.params;
+
+      try {
+        const newToken = userManager.resetToken(id);
+        return reply.code(200).send({ accessToken: newToken });
+      } catch (err: unknown) {
+        if (err instanceof Error && err.message.startsWith('User not found')) {
+          return reply.code(404).send({
+            error: 'Not Found',
+            message: `User not found: ${id}`,
+          });
+        }
+        throw err;
+      }
+    },
+  );
+
+  // GET /api/admin/users — list all users
+  fastify.get(
+    '/api/admin/users',
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const users = userManager.listUsers();
+      return reply.code(200).send(users);
+    },
+  );
+
+  // GET /api/admin/keys — list all API keys (masked)
+  fastify.get(
+    '/api/admin/keys',
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const db = getDatabase();
+      const rows = db.prepare(
+        `SELECT ak.id, ak.provider_id, ak.encrypted_key, ak.contributor_user_id,
+                ak.status, ak.consecutive_failures, ak.estimated_quota,
+                ak.last_used_at, ak.created_at,
+                u.username AS contributor_username
+         FROM api_keys ak
+         LEFT JOIN users u ON ak.contributor_user_id = u.id
+         ORDER BY ak.created_at`,
+      ).all() as Record<string, unknown>[];
+
+      const keys = rows.map((row) => ({
+        id: row.id,
+        provider: row.provider_id,
+        maskedKey: '****' + (row.encrypted_key as string).slice(-4),
+        contributorUserId: row.contributor_user_id,
+        contributorUsername: row.contributor_username ?? null,
+        status: row.status,
+        consecutiveFailures: row.consecutive_failures,
+        estimatedQuota: row.estimated_quota,
+        lastUsedAt: row.last_used_at,
+        createdAt: row.created_at,
+      }));
+
+      return reply.code(200).send(keys);
+    },
+  );
+
+  // GET /api/admin/providers — list all providers
+  fastify.get(
+    '/api/admin/providers',
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const db = getDatabase();
+      const rows = db.prepare(
+        `SELECT id, name, api_base_url, prompt_price_per_k_token,
+                completion_price_per_k_token, is_default, created_at
+         FROM providers ORDER BY created_at`,
+      ).all() as Record<string, unknown>[];
+
+      const providers = rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        apiBaseUrl: row.api_base_url,
+        promptPricePerKToken: row.prompt_price_per_k_token,
+        completionPricePerKToken: row.completion_price_per_k_token,
+        isDefault: row.is_default === 1,
+        createdAt: row.created_at,
+      }));
+
+      return reply.code(200).send(providers);
+    },
+  );
+
   // POST /api/admin/keys — add a new API key to the pool
   fastify.post(
     '/api/admin/keys',
