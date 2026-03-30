@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Card, Form, Input, Button, message, Typography } from 'antd'
+import { Card, Form, Input, Button, Typography, App } from 'antd'
 import { LockOutlined } from '@ant-design/icons'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -10,6 +10,7 @@ export default function LoginPage() {
   const { login, user } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
+  const { message } = App.useApp()
 
   useEffect(() => {
     if (user) {

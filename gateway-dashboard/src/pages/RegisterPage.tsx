@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Card, Form, Input, Select, Button, Modal, message, Typography } from 'antd'
+import { Card, Form, Input, Select, Button, Modal, Typography, App } from 'antd'
 import { UserOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
 import { register } from '../api/client'
@@ -17,6 +17,7 @@ const PROVIDER_OPTIONS = [
 export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [form] = Form.useForm()
+  const { message, modal } = App.useApp()
 
   const onFinish = async (values: { username: string; apiKey?: string; apiKeyProvider?: string }) => {
     setLoading(true)
@@ -26,7 +27,7 @@ export default function RegisterPage() {
         apiKey: values.apiKey || undefined,
         apiKeyProvider: values.apiKeyProvider || undefined,
       })
-      Modal.success({
+      modal.success({
         title: '注册成功',
         content: (
           <div>
